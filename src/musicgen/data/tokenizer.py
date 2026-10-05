@@ -41,14 +41,18 @@ class MusicTokenizer:
 
     def tokenize_midi(self, midi_path: str | Path):
         seq = self.tokenizer(Path(midi_path))
+
         if isinstance(seq, list):
             ids = []
+            tokens = []
             for s in seq:
                 ids.extend(s.ids)
+                tokens.extend(s.tokens)
         else:
-            ids = seq.ids
+            ids = list(seq.ids)
+            tokens = list(seq.tokens)
+
         ids = [int(x) for x in ids]
-        tokens = self.tokenizer.ids_to_tokens(ids)
         registers = [
             int(token_string_to_register(str(tok)))
             for tok in tokens

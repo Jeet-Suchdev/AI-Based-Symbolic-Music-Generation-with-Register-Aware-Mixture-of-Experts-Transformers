@@ -8,7 +8,7 @@ from symusic import Score
 
 def create_tokenizer():
     config = TokenizerConfig(
-        pitch_range=(0, 128),
+        pitch_range=(0, 127),
         beat_res={(0, 4): 8, (4, 12): 4},
         num_velocities=32,
         special_tokens=["PAD", "BOS", "EOS", "MASK"],
