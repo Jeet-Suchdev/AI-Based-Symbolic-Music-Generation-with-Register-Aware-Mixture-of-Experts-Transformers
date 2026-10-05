@@ -1,0 +1,9 @@
+model:
+  architecture: moe
+  register_embedding: true
+  instrument_embedding: true
+moe:
+  enabled: true
+  routing: top2
+cross_register:
+  enabled: false

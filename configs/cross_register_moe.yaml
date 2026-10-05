@@ -1,0 +1,68 @@
+seed: 42
+data:
+  train_path: data/tokenized/train
+  val_path: data/tokenized/val
+  test_path: data/tokenized/test
+  max_seq_len: 512
+  batch_size: 2
+  num_workers: 2
+  pin_memory: true
+  persistent_workers: false
+
+model:
+  architecture: cross_register_moe
+  d_model: 256
+  n_layers: 6
+  n_heads: 8
+  ffn_dim: 1024
+  dropout: 0.1
+  max_seq_len: 512
+  normalization: rmsnorm
+  positional_encoding: rope
+  register_embedding: true
+  instrument_embedding: true
+  num_registers: 4
+  num_instruments: 129
+
+moe:
+  enabled: true
+  num_experts: 3
+  routing: top2
+  expert_ffn_dim: 1024
+  load_balance_weight: 0.01
+
+cross_register:
+  enabled: true
+  num_heads: 4
+  dropout: 0.1
+
+training:
+  max_steps: 20000
+  learning_rate: 0.0003
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  gradient_clip: 1.0
+  gradient_accumulation_steps: 8
+  precision: auto
+  gradient_checkpointing: false
+  log_every_steps: 50
+  validate_every_steps: 500
+  max_val_batches: 50
+
+scheduler:
+  type: cosine
+  warmup_steps: 1000
+  min_lr: 0.00001
+
+checkpoint:
+  directory: checkpoints
+  save_every_steps: 1000
+  keep_last_n: 3
+  save_best: true
+  auto_resume: true
+
+logging:
+  log_dir: logs
+  wandb:
+    enabled: false
+    project: symbolic-music-moe

@@ -1,0 +1,8 @@
+model:
+  architecture: baseline
+  register_embedding: false
+  instrument_embedding: false
+moe:
+  enabled: false
+cross_register:
+  enabled: false

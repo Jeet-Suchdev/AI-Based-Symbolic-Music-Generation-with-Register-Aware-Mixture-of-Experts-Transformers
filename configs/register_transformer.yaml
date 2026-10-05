@@ -1,0 +1,8 @@
+model:
+  architecture: register
+  register_embedding: true
+  instrument_embedding: true
+moe:
+  enabled: false
+cross_register:
+  enabled: false
