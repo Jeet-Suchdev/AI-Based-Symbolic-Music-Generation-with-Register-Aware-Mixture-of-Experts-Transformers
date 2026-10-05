@@ -51,35 +51,107 @@ class MusicTransformer(nn.Module):
         return {"logits": logits, "moe_stats": moe_stats}
 
     @torch.no_grad()
-    def generate(self, input_ids, register_ids, instrument_ids, max_new_tokens=256, temperature=1.0, top_k=50, top_p=0.95, eos_id=None):
+    def generate(
+        self,
+        input_ids,
+        register_ids,
+        instrument_ids,
+        max_new_tokens=256,
+        temperature=1.0,
+        top_k=50,
+        top_p=0.95,
+        eos_id=None,
+    ):
         self.eval()
+
         for _ in range(max_new_tokens):
             max_len = self.cfg["model"]["max_seq_len"]
+
             ids = input_ids[:, -max_len:]
             regs = register_ids[:, -max_len:]
             inst = instrument_ids[:, -max_len:]
+
             out = self(ids, regs, inst)
+
             logits = out["logits"][:, -1, :] / max(temperature, 1e-5)
+
             if top_k:
                 k = min(top_k, logits.size(-1))
                 v, _ = torch.topk(logits, k)
                 logits[logits < v[:, [-1]]] = float("-inf")
-            probs = torch.softmax(logits, dim=-1)
+
+            probs = torch.softmax(logits, -1)
+
             if top_p and top_p < 1.0:
-                sorted_probs, sorted_idx = torch.sort(probs, descending=True)
+                sorted_probs, sorted_idx = torch.sort(
+                    probs,
+                    descending=True
+                )
+
                 cumulative = sorted_probs.cumsum(-1)
+
                 remove = cumulative > top_p
+
                 remove[:, 1:] = remove[:, :-1].clone()
                 remove[:, 0] = False
+
                 sorted_probs[remove] = 0
-                probs = torch.zeros_like(probs).scatter(1, sorted_idx, sorted_probs)
-                probs = probs / probs.sum(-1, keepdim=True).clamp_min(1e-9)
+
+                probs = torch.zeros_like(probs).scatter(
+                    1,
+                    sorted_idx,
+                    sorted_probs
+                )
+
+                probs = probs / probs.sum(
+                    -1,
+                    keepdim=True
+                ).clamp_min(1e-9)
+
             next_id = torch.multinomial(probs, 1)
+
+            # Derive register from generated pitch token.
+            # Current REMI vocabulary:
+            # Pitch_0 ... Pitch_127 -> IDs 5 ... 132
+            #
+            # LOW:  MIDI 0-47
+            # MID:  MIDI 48-71
+            # HIGH: MIDI 72-127
             next_reg = torch.zeros_like(next_id)
+
+            token_id = int(next_id.item())
+
+            if 5 <= token_id <= 132:
+                pitch = token_id - 5
+
+                if pitch < 48:
+                    next_reg.fill_(0)
+                elif pitch < 72:
+                    next_reg.fill_(1)
+                else:
+                    next_reg.fill_(2)
+
             next_inst = instrument_ids[:, -1:]
-            input_ids = torch.cat([input_ids, next_id], 1)
-            register_ids = torch.cat([register_ids, next_reg], 1)
-            instrument_ids = torch.cat([instrument_ids, next_inst], 1)
-            if eos_id is not None and bool((next_id == eos_id).all()):
+
+            input_ids = torch.cat(
+                [input_ids, next_id],
+                dim=1
+            )
+
+            register_ids = torch.cat(
+                [register_ids, next_reg],
+                dim=1
+            )
+
+            instrument_ids = torch.cat(
+                [instrument_ids, next_inst],
+                dim=1
+            )
+
+            if eos_id is not None and bool(
+                (next_id == eos_id).all()
+            ):
                 break
+
         return input_ids
+

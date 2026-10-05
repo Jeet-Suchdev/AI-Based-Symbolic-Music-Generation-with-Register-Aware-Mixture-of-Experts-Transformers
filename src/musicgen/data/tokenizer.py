@@ -74,23 +74,53 @@ class MusicTokenizer:
         }
 
     def decode(self, ids, output_path: str | Path):
+        import numpy as np
+        from miditok import TokSequence
+
+        # Convert tensor / numpy array / list to Python list
+        if isinstance(ids, torch.Tensor):
+            ids = ids.detach().cpu().tolist()
+        elif isinstance(ids, np.ndarray):
+            ids = ids.tolist()
+        else:
+            ids = list(ids)
+
         ids = [int(x) for x in ids]
-        # Remove padding and stop after EOS.
+
+        # Remove padding and stop after EOS
         cleaned = []
         for x in ids:
             if x == self.pad_id:
                 continue
+
             cleaned.append(x)
+
             if x == self.eos_id:
                 break
-        try:
-            seq = self.tokenizer.decode(cleaned)
-        except AttributeError:
-            from miditok import TokSequence
-            seq = TokSequence(ids=cleaned)
-            self.tokenizer.decode_token_ids(seq)
-        midi = self.tokenizer(seq)
+
+        # Convert token IDs to token strings
+        id_to_token = {
+            idx: token
+            for token, idx in self.tokenizer.vocab.items()
+        }
+
+        token_strings = [
+            id_to_token[x]
+            for x in cleaned
+            if x in id_to_token
+        ]
+
+        # Create TokSequence from token strings
+        seq = TokSequence(tokens=token_strings)
+
+        # Convert token sequence to MIDI
+        midi = self.tokenizer.tokens_to_midi(seq)
+
+        # Save MIDI
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
+
         midi.dump_midi(output_path)
+
         return output_path
+
