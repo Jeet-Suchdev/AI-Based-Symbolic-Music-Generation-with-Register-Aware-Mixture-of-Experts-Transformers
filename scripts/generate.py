@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 import torch
+from musicgen.seed import seed_everything
 from musicgen.config import load_config
 from musicgen.device import get_device
 from musicgen.data.tokenizer import MusicTokenizer
@@ -16,6 +17,12 @@ def main():
     ap.add_argument("--top-k", type=int, default=50)
     ap.add_argument("--top-p", type=float, default=0.95)
     ap.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducible generation",
+    )
+    ap.add_argument(
         "--style",
         type=int,
         choices=[0, 1, 2, 3],
@@ -23,6 +30,7 @@ def main():
         help="Style: 0=Baroque, 1=Classical, 2=Romantic, 3=Modern",
     )
     args = ap.parse_args()
+    seed_everything(args.seed)
 
     ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     cfg = ckpt["config"]
