@@ -15,6 +15,13 @@ def main():
     ap.add_argument("--temperature", type=float, default=0.9)
     ap.add_argument("--top-k", type=int, default=50)
     ap.add_argument("--top-p", type=float, default=0.95)
+    ap.add_argument(
+        "--style",
+        type=int,
+        choices=[0, 1, 2, 3],
+        default=3,
+        help="Style: 0=Baroque, 1=Classical, 2=Romantic, 3=Modern",
+    )
     args = ap.parse_args()
 
     ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
@@ -27,7 +34,11 @@ def main():
     device = get_device()
     output = generate_from_checkpoint(
         model, tokenizer, args.checkpoint, args.output, device,
-        args.max_tokens, args.temperature, args.top_k, args.top_p
+        args.max_tokens,
+        args.temperature,
+        args.top_k,
+        args.top_p,
+        args.style,
     )
     print(f"Generated: {output}")
 

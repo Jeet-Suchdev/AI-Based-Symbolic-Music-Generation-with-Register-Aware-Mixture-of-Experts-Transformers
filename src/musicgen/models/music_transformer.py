@@ -11,6 +11,13 @@ class MusicTransformer(nn.Module):
         self.vocab_size = vocab_size
         self.pad_id = pad_id
         m = cfg["model"]
+
+        self.use_style = m.get("style_embedding", True)
+        self.num_styles = m.get("num_styles", 4)
+        self.style_emb = (
+            nn.Embedding(self.num_styles, m["d_model"])
+            if self.use_style else None
+        )
         self.emb = MusicEmbeddings(
             vocab_size,
             m["d_model"],
@@ -40,8 +47,18 @@ class MusicTransformer(nn.Module):
         elif isinstance(module, nn.Embedding):
             nn.init.normal_(module.weight, 0.0, 0.02)
 
-    def forward(self, input_ids, register_ids=None, instrument_ids=None, attention_mask=None):
+    def forward(
+        self,
+        input_ids,
+        register_ids=None,
+        instrument_ids=None,
+        attention_mask=None,
+        style_ids=None,
+    ):
         x = self.emb(input_ids, register_ids, instrument_ids)
+
+        if self.style_emb is not None and style_ids is not None:
+            x = x + self.style_emb(style_ids).unsqueeze(1)
         moe_stats = []
         for block in self.blocks:
             x, aux = block(x, register_ids, attention_mask)
@@ -57,6 +74,7 @@ class MusicTransformer(nn.Module):
         register_ids,
         instrument_ids,
         max_new_tokens=256,
+        style_ids=None,
         temperature=1.0,
         top_k=50,
         top_p=0.95,
@@ -71,7 +89,12 @@ class MusicTransformer(nn.Module):
             regs = register_ids[:, -max_len:]
             inst = instrument_ids[:, -max_len:]
 
-            out = self(ids, regs, inst)
+            out = self(
+                ids,
+                regs,
+                inst,
+                style_ids=style_ids,
+            )
 
             logits = out["logits"][:, -1, :] / max(temperature, 1e-5)
 

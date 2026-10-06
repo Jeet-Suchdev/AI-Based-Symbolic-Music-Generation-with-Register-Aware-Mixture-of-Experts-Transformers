@@ -21,6 +21,8 @@ model:
   positional_encoding: rope
   register_embedding: true
   instrument_embedding: true
+  style_embedding: true
+  num_styles: 4
   num_registers: 4
   num_instruments: 129
 

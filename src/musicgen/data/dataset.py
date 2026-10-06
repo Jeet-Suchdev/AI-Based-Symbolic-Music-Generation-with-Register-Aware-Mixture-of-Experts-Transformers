@@ -23,6 +23,8 @@ class TokenShardDataset(Dataset):
         ids = s["ids"]
         regs = s["registers"]
         inst = s.get("instruments", [128] * len(ids))
+        style_id = int(s.get("style_id", 3))
+
         if len(ids) > self.max_seq_len:
             start = random.randint(0, len(ids) - self.max_seq_len)
             ids, regs, inst = ids[start:start+self.max_seq_len], regs[start:start+self.max_seq_len], inst[start:start+self.max_seq_len]
@@ -30,7 +32,13 @@ class TokenShardDataset(Dataset):
         y = torch.tensor(ids[1:], dtype=torch.long)
         r = torch.tensor(regs[:-1], dtype=torch.long)
         i = torch.tensor(inst[:-1], dtype=torch.long)
-        return {"input_ids": x, "labels": y, "register_ids": r, "instrument_ids": i}
+        return {
+            "input_ids": x,
+            "labels": y,
+            "register_ids": r,
+            "instrument_ids": i,
+            "style_id": torch.tensor(style_id, dtype=torch.long),
+        }
 
 class TinySyntheticDataset(Dataset):
     """Deterministic tiny dataset used to validate the complete training stack."""
@@ -62,4 +70,11 @@ def collate_batch(batch, pad_id=0):
             vals.append(torch.cat([t, torch.full((max_len-len(t),), fill, dtype=torch.long)]))
         out[key] = torch.stack(vals)
     out["attention_mask"] = out["input_ids"].ne(pad_id)
+
+    # Style is sequence-level, so one scalar label is stored per sample.
+    out["style_ids"] = torch.stack([
+        x.get("style_id", torch.tensor(3, dtype=torch.long))
+        for x in batch
+    ])
+
     return out

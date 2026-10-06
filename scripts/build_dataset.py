@@ -40,6 +40,103 @@ def load_official_split(raw_input: Path, processed_input: Path) -> dict[str, str
     return mapping
 
 
+STYLE_NAMES = {
+    0: "baroque",
+    1: "classical",
+    2: "romantic",
+    3: "modern",
+}
+
+def assign_style(composer: str) -> int:
+    """Assign a composer-period style proxy label.
+
+    IMPORTANT:
+    These are composer-based historical style proxies, not
+    ground-truth genre labels from MAESTRO.
+    """
+    c = str(composer).lower()
+
+    if any(x in c for x in [
+        "bach",
+        "handel",
+        "scarlatti",
+        "vivaldi",
+        "couperin",
+        "rameau",
+        "telemann",
+    ]):
+        return 0
+
+    if any(x in c for x in [
+        "mozart",
+        "haydn",
+        "beethoven",
+        "clementi",
+    ]):
+        return 1
+
+    if any(x in c for x in [
+        "chopin",
+        "liszt",
+        "schumann",
+        "brahms",
+        "mendelssohn",
+        "tchaikovsky",
+        "rachmaninoff",
+        "scriabin",
+        "grieg",
+        "dvorak",
+        "smetana",
+        "saint-saens",
+        "schubert",
+    ]):
+        return 2
+
+    return 3
+
+
+def load_style_metadata(raw_input: Path) -> dict[str, int]:
+    """Map MIDI relative paths to composer-period style IDs."""
+    candidates = list(raw_input.glob("*.csv"))
+
+    if not candidates:
+        return {}
+
+    csv_path = candidates[0]
+    mapping = {}
+
+    with csv_path.open("r", encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            midi = row.get("midi_filename", "")
+            composer = row.get("canonical_composer", "")
+
+            if not midi:
+                continue
+
+            mapping[Path(midi).as_posix()] = assign_style(composer)
+
+    return mapping
+
+
+def resolve_style(
+    path: Path,
+    processed_input: Path,
+    style_metadata: dict[str, int],
+) -> int:
+    """Resolve style ID for a MIDI file."""
+    rel = path.relative_to(processed_input).as_posix()
+
+    if rel in style_metadata:
+        return style_metadata[rel]
+
+    matches = [
+        v for k, v in style_metadata.items()
+        if rel.endswith(k)
+    ]
+
+    return matches[0] if matches else 3
+
+
 def resolve_split(path: Path, processed_input: Path, official: dict[str, str]) -> str | None:
     rel = path.relative_to(processed_input).as_posix()
     if rel in official:
@@ -70,6 +167,8 @@ def main():
 
     paths = sorted([*input_dir.rglob("*.mid"), *input_dir.rglob("*.midi")])
     official = load_official_split(raw_input, input_dir)
+    style_metadata = load_style_metadata(raw_input)
+
     assigned = {"train": [], "val": [], "test": []}
     unassigned = []
     for p in paths:
@@ -96,7 +195,22 @@ def main():
         for p in split_paths:
             try:
                 s = tokenizer.tokenize_midi(p)
-                samples.extend(chunk_sample(s, int(cfg["data"]["max_seq_len"])))
+
+                style_id = resolve_style(
+                    p,
+                    input_dir,
+                    style_metadata,
+                )
+
+                chunks = chunk_sample(
+                    s,
+                    int(cfg["data"]["max_seq_len"]),
+                )
+
+                for chunk in chunks:
+                    chunk["style_id"] = style_id
+
+                samples.extend(chunks)
             except Exception as exc:
                 print(f"Skipping {p}: {exc}")
         split_dir = out / split
